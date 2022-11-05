@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <ProcessConfig>
   <ProcessInfo DisplayName="微信啊" ProcessName="WeChat" Type="EXE" Parm="C:\Program Files (x86)\Tencent\WeChat\WeChat.exe" TimeOut="1234" />
+  <ProcessInfo DisplayName="注册表" ProcessName="regedit" Type="CMD" Parm="regedit" TimeOut="5123" />
+  <ProcessInfo DisplayName="计算器" ProcessName="CalculatorApp" Type="CMD" Parm="calc" TimeOut="2345" />
   <ProcessInfo DisplayName="任务管理器" ProcessName="Taskmgr" Type="BAT" Parm="D:\Users\CH-HTHT\Desktop\启动任务管理器.bat" TimeOut="5000" />
-  <ProcessInfo DisplayName="注册表" ProcessName="regedit" Type="CMD" Parm="regedit" TimeOut="123" />
-  <ProcessInfo DisplayName="计算器" ProcessName="Calculator" Type="CMD" Parm="calc" TimeOut="2345" />
 </ProcessConfig>

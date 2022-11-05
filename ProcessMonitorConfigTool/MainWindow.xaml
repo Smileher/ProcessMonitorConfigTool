@@ -15,14 +15,14 @@
         <Popup x:Name="popup1" AllowsTransparency="True" IsHitTestVisible="False" Placement="RelativePoint" PlacementTarget="{Binding ElementName=dataGrid1}" />
         <DataGrid x:Name="dataGrid1" Grid.Row="0" SelectionMode="Single" SelectedItem="{Binding SelectedProcessInfo}" HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding ProcessInfos}" Validation.ErrorTemplate="{x:Null}" IsReadOnly="True" AutoGenerateColumns="False" local:DragDropRowBehavior.Enabled="True" local:DragDropRowBehavior.PopupControl="{Binding ElementName=popup1}">
             <DataGrid.Columns>
-                <DataGridTemplateColumn Header="服务名称" MinWidth="91">
+                <DataGridTemplateColumn Header="服务名称" MinWidth="180">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock Text="{Binding DisplayName,Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTemplateColumn Header="运行状态" MinWidth="180">
+                <DataGridTemplateColumn Header="运行状态" MinWidth="91">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Rectangle StrokeThickness="1" Stroke="Black" Fill="{Binding State,Mode=TwoWay}" Width="20" Height="20" HorizontalAlignment="Center"/>

@@ -36,8 +36,6 @@ namespace ProcessMonitorConfigTool
             get => _selectedProcessInfo;
             set => SetProperty(ref _selectedProcessInfo, value);
         }
-        private DispatcherTimer _timer;
-
         private int _progressValue;
         public int ProgressValue
         {
@@ -71,11 +69,12 @@ namespace ProcessMonitorConfigTool
         public IRelayCommand MoveDownCommand { get; }
         public IRelayCommand CloseCommand { get; }
         public IRelayCommand CloseWinCommand { get; }
-
+        static event EventHandler<AggregateException> AggregateExceptionCatched;
         public MainWindowVM()
         {
+            AggregateExceptionCatched += new EventHandler<AggregateException>(Start);
             OneKeyStartCommand = new RelayCommand(OneKeyStart);
-            StartCommand = new RelayCommand(Start);
+            StartCommand = new RelayCommand(() => { Start(); });
             CloseCommand = new RelayCommand(Close);
             EditCommand = new RelayCommand(Edit);
             NewCommand = new RelayCommand(New);
@@ -86,6 +85,7 @@ namespace ProcessMonitorConfigTool
             CloseWinCommand = new RelayCommand(CloseWin);
             Init();
         }
+
         private void OneKeyStart()
         {
             try
@@ -95,75 +95,92 @@ namespace ProcessMonitorConfigTool
                     throw new Exception("服务数量为空!");
                 }
                 IsRun = true;
-                _timer = new DispatcherTimer
+                ProcessInfos.ForEach(ProcessInfo =>
                 {
-                    Interval = TimeSpan.FromMilliseconds(200)
-                };
-                new Thread(OneKeyStartThread)
-                {
-                    IsBackground = true
-                }.Start();
+                    SelectedProcessInfo = ProcessInfo;
+                    Close();
+                    Start();
+                    Task.Run(async () =>
+                    {
+                        Start();
+                        await Task.Delay((int)SelectedProcessInfo.TimeOut);
+                        if (ProgressValue <= 100)
+                        {
+                            ProgressValue += 100 / ProcessInfos.Count;
+                        }
+                    });
+                    //Thread.Sleep((int)SelectedProcessInfo.TimeOut);
+                    //Task.Run(async () =>
+                    //{
+                    //    Start();
+                    //    await Task.Delay((int)SelectedProcessInfo.TimeOut);
+                    //});
+                });
+                IsRun = false;
             }
             catch (Exception ex)
             {
-                Growl.Error(ex.Message);
+                IsRun = false;
+                Growl.ErrorGlobal(ex.Message);
             }
         }
 
         private void OneKeyStartThread()
         {
-            try
-            {
-                //var time = ProcessInfos.Sum(x => x.TimeOut + 500) - ProcessInfos.Last().TimeOut;
-                var Timer = new DispatcherTimer();
-                ProgressValue = 0;
-                ProcessInfos.ForEach(ProcessInfo =>
-                {
-                    SelectedProcessInfo = ProcessInfo;
-                    Close();
-                    Task t = new Task(() => {
-                        Start();
-                    });
-                    t.Start();
-                    if (!t.Wait((int)SelectedProcessInfo.TimeOut))
-                    {
-                        
-                    }
-
-                    if (ProcessInfo != ProcessInfos.Last())
-                    {
-                        Thread.Sleep((int)SelectedProcessInfo.TimeOut);
-                    }
-                    Thread.Sleep(500);
-                    if (!ProcessNames.Contains(ProcessInfo.ProcessName))
-                    {
-                        IsRun = false;
-                    }
-                    else
-                    {
-                        if (ProgressValue <= 100)
-                        {
-                            ProgressValue += 100 / ProcessInfos.Count;
-                        }
-                    }
-                });
-                IsRun = false;
-            }
-            catch (Exception)
-            {
-                throw new Exception(SelectedProcessInfo.DisplayName + " 启动失败！");
-            }
+            //try
+            //{
+            //    //var time = ProcessInfos.Sum(x => x.TimeOut + 500) - ProcessInfos.Last().TimeOut;
+            //    Stopwatch stopWatch = new Stopwatch();
+            //    stopWatch.Start();
+            //    ProgressValue = 0;
+            //    ProcessInfos.ForEach(ProcessInfo =>
+            //    {
+            //        SelectedProcessInfo = ProcessInfo;
+            //        Close();
+            //        Start();
+            //        //if (!ProcessNames.Contains(ProcessInfo.ProcessName))
+            //        //{
+            //        //    IsRun = false;
+            //        //    ProgressValue = 0;
+            //        //    throw new Exception(SelectedProcessInfo.DisplayName + " 启动失败！");
+            //        //}
+            //        Task.Delay((int)SelectedProcessInfo.TimeOut);
+            //        if (ProgressValue <= 100)
+            //        {
+            //            ProgressValue += 100 / ProcessInfos.Count;
+            //        }
+            //        //if (ProcessInfo != ProcessInfos.Last())
+            //        //{
+            //        //    Thread.Sleep((int)SelectedProcessInfo.TimeOut);
+            //        //}
+            //        //Thread.Sleep(500);
+            //        //if (!ProcessNames.Contains(ProcessInfo.ProcessName))
+            //        //{
+            //        //    IsRun = false;
+            //        //}
+            //        //else
+            //        //{
+            //        //}
+            //    });
+            //    IsRun = false;
+            //}
+            //catch (Exception)
+            //{
+            //    IsRun = false;
+            //    ProgressValue = 0;
+            //    Growl.ErrorGlobal("一键启动失败！");
+            //}
         }
         private void SaveConfig()
         {
             try
             {
                 ObjectToXmlFile(ProcessConfig, XmlPath);
-                Growl.Success("保存成功!");
+                Growl.SuccessGlobal("保存成功!");
             }
             catch (Exception ex)
             {
-                Growl.Error("保存失败！" + ex.Message);
+                Growl.ErrorGlobal("保存失败！" + ex.Message);
             }
         }
 
@@ -173,7 +190,7 @@ namespace ProcessMonitorConfigTool
             {
                 if (!File.Exists(XmlPath))
                 {
-                    throw new NotImplementedException();
+                    throw new Exception();
                 }
                 ProcessConfig = XmlFileToObject<ProcessConfig>(XmlPath);
                 ProcessInfos = ProcessConfig.ProcessInfo;
@@ -190,11 +207,33 @@ namespace ProcessMonitorConfigTool
             finally
             {
                 ProcessInfos = ProcessConfig.ProcessInfo;
-                new Thread(ProcessStateThread)
+                Task.Run(async () =>
                 {
-                    IsBackground = true
-                }.Start();
-
+                    while (true)
+                    {
+                        ProcessNow = Process.GetProcesses();
+                        ProcessNames = ProcessNow.Select(x => x.ProcessName).ToList();
+                        ProcessInfos.ForEach(ProcessInfo =>
+                        {
+                            if (!string.IsNullOrEmpty(ProcessInfo.ProcessName))
+                            {
+                                if (ProcessNames.Contains(ProcessInfo.ProcessName))
+                                {
+                                    ProcessInfo.State = Brushes.Green;
+                                }
+                                else
+                                {
+                                    ProcessInfo.State = Brushes.Red;
+                                }
+                            }
+                            else
+                            {
+                                ProcessInfo.State = Brushes.Gray;
+                            }
+                        });
+                        await Task.Delay(100);
+                    }
+                });
             }
         }
         private void CreateDefaultData()
@@ -223,67 +262,9 @@ namespace ProcessMonitorConfigTool
         }
         private void CloseWin()
         {
-            //try
-            //{
-            //    ObjectToXmlFile(ProcessConfig, XmlPath);
-            //}
-            //catch (Exception)
-            //{
-
-            //    throw;
-            //}
+            Growl.ClearGlobal();
+            Environment.Exit(0);
         }
-
-        internal static T TimeoutCheck<T>(int ms, Func<T> func)
-        {
-            var wait = new ManualResetEvent(false);
-            bool RunOK = false;
-            var task = Task.Run<T>(() =>
-            {
-                var result = func.Invoke();
-                RunOK = true;
-                wait.Set();
-                return result;
-            });
-            wait.WaitOne(ms);
-            if (RunOK)
-            {
-                return task.Result;
-            }
-            else
-            {
-                return default(T);
-            }
-        }
-
-        private void ProcessStateThread()
-        {
-            while (true)
-            {
-                ProcessNow = Process.GetProcesses();
-                ProcessNames = ProcessNow.Select(x => x.ProcessName).ToList();
-                ProcessInfos.ForEach(ProcessInfo =>
-                {
-                    if (!string.IsNullOrEmpty(ProcessInfo.ProcessName))
-                    {
-                        if (ProcessNames.Contains(ProcessInfo.ProcessName))
-                        {
-                            ProcessInfo.State = Brushes.Green;
-                        }
-                        else
-                        {
-                            ProcessInfo.State = Brushes.Red;
-                        }
-                    }
-                    else
-                    {
-                        ProcessInfo.State = Brushes.Gray;
-                    }
-                });
-                Thread.Sleep(50);
-            }
-        }
-
         private void MoveUp()
         {
             if (SelectedProcessInfo != null)
@@ -317,7 +298,6 @@ namespace ProcessMonitorConfigTool
                 SelectedProcessInfo = SelectedProcessInfo ?? ProcessInfos.LastOrDefault();
             }
         }
-
         private void New()
         {
             var NewProcessInfo = new ProcessInfo();
@@ -334,115 +314,134 @@ namespace ProcessMonitorConfigTool
             _editWindowVM = new EditWindowVM(SelectedProcessInfo);
             WindowManager.Show("EditWindow", _editWindowVM);
         }
-        private void Start()
+        private void Start(object sender = null, AggregateException e = null)
         {
-            try
+            if (e != null)
             {
-                if (!string.IsNullOrEmpty(SelectedProcessInfo?.Parm) && !string.IsNullOrEmpty(SelectedProcessInfo?.ProcessName) && !string.IsNullOrEmpty(SelectedProcessInfo?.DisplayName))
-                {
-                    switch (SelectedProcessInfo.Type)
+                Growl.ErrorGlobal("服务：[" + SelectedProcessInfo.DisplayName + "]启动失败！原因：" + e.Message);
+                return;
+            }
+            if (string.IsNullOrEmpty(SelectedProcessInfo?.Parm) || string.IsNullOrEmpty(SelectedProcessInfo?.ProcessName) || string.IsNullOrEmpty(SelectedProcessInfo?.DisplayName))
+            {
+                return;
+            }
+            switch (SelectedProcessInfo.Type)
+            {
+                case ParmType.EXE:
                     {
-                        case ParmType.EXE:
-                            {
-                                StartExe(SelectedProcessInfo.Parm);
-                            }
-                            break;
-                        case ParmType.BAT:
-                            {
-                                StartBat(SelectedProcessInfo.Parm);
-                            }
-                            break;
-                        case ParmType.CMD:
-                            {
-                                StartCmd(SelectedProcessInfo.Parm);
-                            }
-                            break;
-                        default:
-                            break;
+                        StartExe(SelectedProcessInfo.Parm);
+                    }
+                    break;
+                case ParmType.BAT:
+                    {
+                        StartBat(SelectedProcessInfo.Parm);
+                    }
+                    break;
+                case ParmType.CMD:
+                    {
+                        StartCmd(SelectedProcessInfo.Parm);
+                    }
+                    break;
+                default:
+                    break;
+            }
+        }
+        private Task StartExe(string parm)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    if (!File.Exists(parm))
+                    {
+                        throw new AggregateException("系统找不到指定的文件。");
+                    }
+                    Process p = Process.Start(parm);
+                    p.Close();
+                }
+                catch (AggregateException e)
+                {
+                    //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
+                    AggregateExceptionCatched?.Invoke(null, e);
+                }
+            });
+        }
+        private Task StartBat(string parm)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    if (!File.Exists(parm))
+                    {
+                        throw new AggregateException("系统找不到指定的文件。");
+                    }
+                    Process p = new Process()
+                    {
+                        StartInfo = new ProcessStartInfo()
+                        {
+                            FileName = parm,
+                            UseShellExecute = false,//是否使用操作系统shell启动
+                            RedirectStandardInput = true,//接受来自调用程序的输入信息
+                            RedirectStandardOutput = true,//输出信息
+                            RedirectStandardError = true,// 输出错误
+                            CreateNoWindow = true//不显示程序窗口
+                        }
+                    };
+                    p.Start();
+                    //获取输出信息
+                    string strOuput = p.StandardOutput.ReadToEnd();
+                    string strErrOuput = p.StandardError.ReadToEnd();
+                    if (!string.IsNullOrEmpty(strErrOuput))
+                    {
+                        throw new AggregateException(strErrOuput);
+                    }
+                    p.Close();
+                }
+                catch (AggregateException e)
+                {
+                    //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
+                    AggregateExceptionCatched?.Invoke(null, e);
+                }
+            });
+        }
+        private Task StartCmd(string parm)
+        {
+            return Task.Run(() =>
+            {
+                try
+                {
+                    Process p = new Process()
+                    {
+                        StartInfo = new ProcessStartInfo()
+                        {
+                            FileName = "cmd.exe",//设置要启动的应用程序
+                            UseShellExecute = false,//是否使用操作系统shell启动
+                            RedirectStandardInput = true,//接受来自调用程序的输入信息
+                            RedirectStandardOutput = true,//输出信息
+                            RedirectStandardError = true,// 输出错误
+                            CreateNoWindow = true//不显示程序窗口
+                        }
+                    };
+                    //启动程序
+                    p.Start();
+                    //向cmd窗口发送输入信息
+                    p.StandardInput.WriteLine(parm + "&exit");
+                    p.StandardInput.AutoFlush = true;
+                    //获取输出信息
+                    string strOuput = p.StandardOutput.ReadToEnd();
+                    string strErrOuput = p.StandardError.ReadToEnd();
+                    if (!string.IsNullOrEmpty(strErrOuput))
+                    {
+                        throw new AggregateException(strErrOuput);
                     }
                 }
-            }
-            catch (Exception ex)
-            {
-                Growl.Error("服务：[" + SelectedProcessInfo.DisplayName + "]启动失败！" + ex.Message);
-            }
-        }
-        private void StartExe(string parm)
-        {
-            try
-            {
-                Process p = new Process();
-                p.StartInfo.FileName = parm;
-                p.StartInfo.Verb = "Open";
-                p.StartInfo.CreateNoWindow = true;
-                p.Start();
-                p.Close();
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
-        private void StartBat(string parm)
-        {
-            try
-            {
-                if (!File.Exists(parm))
+                catch (AggregateException e)
                 {
-                    throw new Exception("系统找不到指定的文件。");
+                    //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
+                    AggregateExceptionCatched?.Invoke(null, e);
                 }
-                Process p = new Process();
-                p.StartInfo.FileName = parm;
-                p.StartInfo.UseShellExecute = false;//运行时隐藏dos窗口
-                p.StartInfo.CreateNoWindow = true;//运行时隐藏dos窗口
-                p.StartInfo.Verb = "runas";//设置该启动动作，会以管理员权限运行进程
-                p.Start();
-                p.Close();
-            }
-            catch (Exception)
-            {
-                throw;
-            }
-        }
-        private void StartCmd(string Input)
-        {
-            try
-            {
-                Process p = new Process();
-                //设置要启动的应用程序
-                p.StartInfo.FileName = "cmd.exe";
-                //是否使用操作系统shell启动
-                p.StartInfo.UseShellExecute = false;
-                //设置该启动动作，会以管理员权限运行进程
-                p.StartInfo.Verb = "runas";
-                // 接受来自调用程序的输入信息
-                p.StartInfo.RedirectStandardInput = true;
-                //输出信息
-                p.StartInfo.RedirectStandardOutput = true;
-                // 输出错误
-                p.StartInfo.RedirectStandardError = true;
-                //不显示程序窗口
-                p.StartInfo.CreateNoWindow = true; 
-                //启动程序
-                p.Start();
-                //向cmd窗口发送输入信息
-                p.StandardInput.WriteLine(Input + "&exit");
-                p.StandardInput.AutoFlush = true;
-                //获取输出信息
-                string strOuput = p.StandardOutput.ReadToEnd();
-                string strErrOuput = p.StandardError.ReadToEnd();
-                p.WaitForExit();
-                p.Close();
-                if (!string.IsNullOrEmpty(strErrOuput))
-                {
-                    //等待程序执行完退出进程
-                    throw new Exception(strErrOuput);
-                }
-            }
-            catch (Exception)
-            {
-                throw;
-            }
+            });
         }
         /// <summary>
         /// 将xml文件反序列化为对象
@@ -506,7 +505,6 @@ namespace ProcessMonitorConfigTool
             return success;
         }
     }
-
     public class ProcessConfig : ObservableObject
     {
         [XmlElement("ProcessInfo")]
