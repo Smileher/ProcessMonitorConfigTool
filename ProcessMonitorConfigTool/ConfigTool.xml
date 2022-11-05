@@ -1,0 +1,6 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ProcessConfig>
+	<ProcessInfo DisplayName="微信" ProcessName="WeChat" Type="EXE" TimeOut="1000" Parm="C:\Program Files (x86)\Tencent\WeChat\WeChat.exe" />
+	<ProcessInfo DisplayName="任务管理器" ProcessName="Taskmgr" Type="BAT" TimeOut="5000" Parm="D:\Users\CH-HTHT\Desktop\启动任务管理器.bat" />
+	<ProcessInfo DisplayName="计算器" ProcessName="Calculator" Type="CMD" TimeOut="1000" Parm="calc"/>
+</ProcessConfig>

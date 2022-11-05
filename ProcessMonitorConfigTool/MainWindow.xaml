@@ -1,0 +1,81 @@
+﻿<hc:Window x:Class="ProcessMonitorConfigTool.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:local="clr-namespace:ProcessMonitorConfigTool"
+        xmlns:hc="https://handyorg.github.io/handycontrol"
+        mc:Ignorable="d"
+        Title="服务监控配置工具 ByChenHe" Height="450" Width="600" ResizeMode="CanMinimize" Topmost="True" Background="{DynamicResource RegionBrush}">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"></RowDefinition>
+            <RowDefinition Height="40"></RowDefinition>
+        </Grid.RowDefinitions>
+        <Popup x:Name="popup1" AllowsTransparency="True" IsHitTestVisible="False" Placement="RelativePoint" PlacementTarget="{Binding ElementName=dataGrid1}" />
+        <DataGrid x:Name="dataGrid1" Grid.Row="0" SelectionMode="Single" SelectedItem="{Binding SelectedProcessInfo}" HorizontalScrollBarVisibility="Disabled" ItemsSource="{Binding ProcessInfos}" Validation.ErrorTemplate="{x:Null}" IsReadOnly="True" AutoGenerateColumns="False" local:DragDropRowBehavior.Enabled="True" local:DragDropRowBehavior.PopupControl="{Binding ElementName=popup1}">
+            <DataGrid.Columns>
+                <DataGridTemplateColumn Header="服务名称" MinWidth="91">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding DisplayName,Mode=TwoWay}" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="运行状态" MinWidth="180">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <Rectangle StrokeThickness="1" Stroke="Black" Fill="{Binding State,Mode=TwoWay}" Width="20" Height="20" HorizontalAlignment="Center"/>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+                <DataGridTemplateColumn Header="操作" MinWidth="318" CanUserResize="False">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Button Width="70" Content="启动" Command="{Binding DataContext.StartCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=DataGrid}}"/>
+                                <Button Margin="15,0,0,0" Width="70" Content="结束" Command="{Binding DataContext.CloseCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=DataGrid}}"/>
+                                <Button Margin="15,0,0,0" Width="70" Content="编辑" Command="{Binding DataContext.EditCommand, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=DataGrid}}"/>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
+            </DataGrid.Columns>
+            <DataGrid.ColumnHeaderStyle>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="HorizontalContentAlignment" Value="Center">
+                    </Setter>
+                </Style>
+            </DataGrid.ColumnHeaderStyle>
+            <DataGrid.CellStyle>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="BorderThickness" Value="0"/>
+                    <Setter Property="BorderBrush" Value="{hc:StaticResource PrimaryBrush}"/>
+                    <Setter Property="MinWidth" Value="0"/>
+                    <Style.Triggers>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="{hc:StaticResource PrimaryBrush}"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="BorderThickness" Value="0"/>
+                            <Setter Property="BorderBrush" Value="{hc:StaticResource PrimaryBrush}"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </DataGrid.CellStyle>
+
+        </DataGrid>
+        <DockPanel  Grid.Row="1" Margin="5">
+            <Button Content="新增服务" DockPanel.Dock="Left" Command="{Binding NewCommand}"></Button>
+            <Button Content="删除服务" DockPanel.Dock="Left" Margin="14,0,0,0" Command="{Binding DeleteCommand}"></Button>
+            <Button Content="向上移动" DockPanel.Dock="Left" Margin="14,0,0,0" Command="{Binding MoveUpCommand}"></Button>
+            <Button Content="向下移动" DockPanel.Dock="Left" Margin="14,0,0,0" Command="{Binding MoveDownCommand}"></Button>
+            <Button Content="保存配置" DockPanel.Dock="Left" Margin="14,0,0,0" Command="{Binding SaveConfigCommand}"></Button>
+            <hc:ProgressButton Style="{StaticResource ProgressButtonPrimary}" ProgressStyle="{hc:StaticResource ProgressBarBaseStyle}" IsChecked="{Binding IsRun,Mode=TwoWay}" Progress="{Binding ProgressValue}" Content="{Binding ProgressContent}" Width="160" DockPanel.Dock="Right" HorizontalAlignment="Right" Command="{Binding OneKeyStartCommand}"></hc:ProgressButton>
+        </DockPanel>
+    </Grid>
+    <hc:Interaction.Triggers>
+        <hc:EventTrigger EventName="Closing">
+            <hc:InvokeCommandAction Command="{Binding CloseWinCommand}" />
+        </hc:EventTrigger>
+    </hc:Interaction.Triggers>
+</hc:Window>
