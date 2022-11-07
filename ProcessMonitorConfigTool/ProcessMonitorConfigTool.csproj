@@ -7,7 +7,7 @@
     <ProjectGuid>{1AF9F3B5-40CC-4EC0-8B13-E2AEFFC07C0E}</ProjectGuid>
     <OutputType>WinExe</OutputType>
     <RootNamespace>ProcessMonitorConfigTool</RootNamespace>
-    <AssemblyName>ProcessMonitorConfigTool</AssemblyName>
+    <AssemblyName>服务监控配置工具</AssemblyName>
     <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
     <FileAlignment>512</FileAlignment>
     <ProjectTypeGuids>{60dc8134-eba5-43b8-bcc9-bb4bc16c2548};{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}</ProjectTypeGuids>
@@ -49,6 +49,9 @@
   </PropertyGroup>
   <PropertyGroup>
     <ApplicationManifest>app.manifest</ApplicationManifest>
+  </PropertyGroup>
+  <PropertyGroup>
+    <ApplicationIcon>icon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <Reference Include="System" />
@@ -136,6 +139,11 @@
     <PackageReference Include="HandyControls">
       <Version>3.4.2</Version>
     </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="icon.ico">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

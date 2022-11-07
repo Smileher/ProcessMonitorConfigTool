@@ -6,7 +6,8 @@
         xmlns:local="clr-namespace:ProcessMonitorConfigTool"
         xmlns:hc="https://handyorg.github.io/handycontrol"
         mc:Ignorable="d"
-        Title="服务监控配置工具 ByChenHe" Height="450" Width="600" ResizeMode="CanMinimize" Topmost="True" Background="{DynamicResource RegionBrush}">
+        hc:Icon="icon.ico"
+        Title="服务监控配置工具v1.0 ByHTHT@ChenHe" Height="450" Width="600" ResizeMode="CanMinimize" Topmost="True" Background="{DynamicResource RegionBrush}">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"></RowDefinition>

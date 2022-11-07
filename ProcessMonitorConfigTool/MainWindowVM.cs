@@ -11,11 +11,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Timers;
 using System.Windows;
-using System.Windows.Documents;
 using System.Windows.Media;
-using System.Windows.Threading;
 using System.Xml;
 using System.Xml.Serialization;
 using MessageBox = HandyControl.Controls.MessageBox;
@@ -72,9 +69,10 @@ namespace ProcessMonitorConfigTool
         static event EventHandler<AggregateException> AggregateExceptionCatched;
         public MainWindowVM()
         {
-            AggregateExceptionCatched += new EventHandler<AggregateException>(Start);
-            OneKeyStartCommand = new RelayCommand(OneKeyStart);
-            StartCommand = new RelayCommand(() => { Start(); });
+            AggregateExceptionCatched += new EventHandler<AggregateException>(Program_AggregateExceptionCatched);
+            OneKeyStartCommand = new AsyncRelayCommand(OneKeyStart);
+            StartCommand = new RelayCommand(Start);
+            //StartCommand = new AsyncRelayCommand(Start);
             CloseCommand = new RelayCommand(Close);
             EditCommand = new RelayCommand(Edit);
             NewCommand = new RelayCommand(New);
@@ -86,7 +84,7 @@ namespace ProcessMonitorConfigTool
             Init();
         }
 
-        private void OneKeyStart()
+        private Task OneKeyStart()
         {
             try
             {
@@ -94,34 +92,36 @@ namespace ProcessMonitorConfigTool
                 {
                     throw new Exception("服务数量为空!");
                 }
-                IsRun = true;
-                ProcessInfos.ForEach(ProcessInfo =>
+                return Task.Run(() =>
                 {
-                    SelectedProcessInfo = ProcessInfo;
-                    Close();
-                    Start();
-                    Task.Run(async () =>
+                    IsRun = true;
+                    //全部关闭
+                    ProcessInfos.ForEach(ProcessInfo => { 
+                        SelectedProcessInfo = ProcessInfo;
+                        Close();
+                    });
+                    //逐个启动
+                    ProcessInfos.ForEach(ProcessInfo =>
                     {
+                        SelectedProcessInfo = ProcessInfo;
                         Start();
-                        await Task.Delay((int)SelectedProcessInfo.TimeOut);
+                        Thread.Sleep((int)SelectedProcessInfo.TimeOut);
                         if (ProgressValue <= 100)
                         {
                             ProgressValue += 100 / ProcessInfos.Count;
                         }
                     });
-                    //Thread.Sleep((int)SelectedProcessInfo.TimeOut);
-                    //Task.Run(async () =>
-                    //{
-                    //    Start();
-                    //    await Task.Delay((int)SelectedProcessInfo.TimeOut);
-                    //});
+                    IsRun = false;
+                    ProgressValue = 0; 
+                    Growl.SuccessGlobal("一键重启成功！");
                 });
-                IsRun = false;
             }
             catch (Exception ex)
             {
                 IsRun = false;
+                ProgressValue = 0;
                 Growl.ErrorGlobal(ex.Message);
+                throw;
             }
         }
 
@@ -314,135 +314,129 @@ namespace ProcessMonitorConfigTool
             _editWindowVM = new EditWindowVM(SelectedProcessInfo);
             WindowManager.Show("EditWindow", _editWindowVM);
         }
-        private void Start(object sender = null, AggregateException e = null)
+        private void Start()
         {
-            if (e != null)
-            {
-                Growl.ErrorGlobal("服务：[" + SelectedProcessInfo.DisplayName + "]启动失败！原因：" + e.Message);
-                return;
-            }
             if (string.IsNullOrEmpty(SelectedProcessInfo?.Parm) || string.IsNullOrEmpty(SelectedProcessInfo?.ProcessName) || string.IsNullOrEmpty(SelectedProcessInfo?.DisplayName))
             {
                 return;
             }
-            switch (SelectedProcessInfo.Type)
+            Task.Run(() =>
             {
-                case ParmType.EXE:
-                    {
-                        StartExe(SelectedProcessInfo.Parm);
-                    }
-                    break;
-                case ParmType.BAT:
-                    {
-                        StartBat(SelectedProcessInfo.Parm);
-                    }
-                    break;
-                case ParmType.CMD:
-                    {
-                        StartCmd(SelectedProcessInfo.Parm);
-                    }
-                    break;
-                default:
-                    break;
+                switch (SelectedProcessInfo.Type)
+                {
+                    case ParmType.EXE:
+                        {
+                            StartExe(SelectedProcessInfo.Parm);
+                        }
+                        break;
+                    case ParmType.BAT:
+                        {
+                            StartBat(SelectedProcessInfo.Parm);
+                        }
+                        break;
+                    case ParmType.CMD:
+                        {
+                            StartCmd(SelectedProcessInfo.Parm);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            });
+        }
+        private void StartExe(string parm)
+        {
+            try
+            {
+                if (!File.Exists(parm))
+                {
+                    throw new AggregateException("系统找不到指定的文件。");
+                }
+                Process p = Process.Start(parm);
+                p.Close();
+            }
+            catch (AggregateException e)
+            {
+                //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
+                AggregateExceptionCatched?.Invoke(null, e);
             }
         }
-        private Task StartExe(string parm)
+        private void StartBat(string parm)
         {
-            return Task.Run(() =>
+            try
             {
-                try
+                if (!File.Exists(parm))
                 {
-                    if (!File.Exists(parm))
+                    throw new AggregateException("系统找不到指定的文件。");
+                }
+                Process p = new Process()
+                {
+                    StartInfo = new ProcessStartInfo()
                     {
-                        throw new AggregateException("系统找不到指定的文件。");
+                        FileName = parm,
+                        UseShellExecute = false,//是否使用操作系统shell启动
+                        RedirectStandardInput = true,//接受来自调用程序的输入信息
+                        RedirectStandardOutput = true,//输出信息
+                        RedirectStandardError = true,// 输出错误
+                        CreateNoWindow = true//不显示程序窗口
                     }
-                    Process p = Process.Start(parm);
-                    p.Close();
-                }
-                catch (AggregateException e)
+                };
+                p.Start();
+                //获取输出信息
+                string strOuput = p.StandardOutput.ReadToEnd();
+                string strErrOuput = p.StandardError.ReadToEnd();
+                if (!string.IsNullOrEmpty(strErrOuput))
                 {
-                    //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
-                    AggregateExceptionCatched?.Invoke(null, e);
+                    throw new AggregateException(strErrOuput);
                 }
-            });
+                p.Close();
+            }
+            catch (AggregateException e)
+            {
+                //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
+                AggregateExceptionCatched?.Invoke(null, e);
+            }
         }
-        private Task StartBat(string parm)
+        private void StartCmd(string parm)
         {
-            return Task.Run(() =>
+            try
             {
-                try
+                Process p = new Process()
                 {
-                    if (!File.Exists(parm))
+                    StartInfo = new ProcessStartInfo()
                     {
-                        throw new AggregateException("系统找不到指定的文件。");
+                        FileName = "cmd.exe",//设置要启动的应用程序
+                        UseShellExecute = false,//是否使用操作系统shell启动
+                        RedirectStandardInput = true,//接受来自调用程序的输入信息
+                        RedirectStandardOutput = true,//输出信息
+                        RedirectStandardError = true,// 输出错误
+                        CreateNoWindow = true//不显示程序窗口
                     }
-                    Process p = new Process()
-                    {
-                        StartInfo = new ProcessStartInfo()
-                        {
-                            FileName = parm,
-                            UseShellExecute = false,//是否使用操作系统shell启动
-                            RedirectStandardInput = true,//接受来自调用程序的输入信息
-                            RedirectStandardOutput = true,//输出信息
-                            RedirectStandardError = true,// 输出错误
-                            CreateNoWindow = true//不显示程序窗口
-                        }
-                    };
-                    p.Start();
-                    //获取输出信息
-                    string strOuput = p.StandardOutput.ReadToEnd();
-                    string strErrOuput = p.StandardError.ReadToEnd();
-                    if (!string.IsNullOrEmpty(strErrOuput))
-                    {
-                        throw new AggregateException(strErrOuput);
-                    }
-                    p.Close();
-                }
-                catch (AggregateException e)
+                };
+                //启动程序
+                p.Start();
+                //向cmd窗口发送输入信息
+                p.StandardInput.WriteLine(parm + "&exit");
+                p.StandardInput.AutoFlush = true;
+                //获取输出信息
+                string strOuput = p.StandardOutput.ReadToEnd();
+                string strErrOuput = p.StandardError.ReadToEnd();
+                if (!string.IsNullOrEmpty(strErrOuput))
                 {
-                    //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
-                    AggregateExceptionCatched?.Invoke(null, e);
+                    throw new AggregateException(strErrOuput);
                 }
-            });
+            }
+            catch (AggregateException e)
+            {
+                //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
+                AggregateExceptionCatched?.Invoke(null, e);
+            }
         }
-        private Task StartCmd(string parm)
+        void Program_AggregateExceptionCatched(object sender, AggregateException e)
         {
-            return Task.Run(() =>
-            {
-                try
-                {
-                    Process p = new Process()
-                    {
-                        StartInfo = new ProcessStartInfo()
-                        {
-                            FileName = "cmd.exe",//设置要启动的应用程序
-                            UseShellExecute = false,//是否使用操作系统shell启动
-                            RedirectStandardInput = true,//接受来自调用程序的输入信息
-                            RedirectStandardOutput = true,//输出信息
-                            RedirectStandardError = true,// 输出错误
-                            CreateNoWindow = true//不显示程序窗口
-                        }
-                    };
-                    //启动程序
-                    p.Start();
-                    //向cmd窗口发送输入信息
-                    p.StandardInput.WriteLine(parm + "&exit");
-                    p.StandardInput.AutoFlush = true;
-                    //获取输出信息
-                    string strOuput = p.StandardOutput.ReadToEnd();
-                    string strErrOuput = p.StandardError.ReadToEnd();
-                    if (!string.IsNullOrEmpty(strErrOuput))
-                    {
-                        throw new AggregateException(strErrOuput);
-                    }
-                }
-                catch (AggregateException e)
-                {
-                    //使用主线程委托代理，处理子线程 异常,这种方式没有阻塞 主线程或其他线程
-                    AggregateExceptionCatched?.Invoke(null, e);
-                }
-            });
+            Growl.ErrorGlobal("[" + SelectedProcessInfo.DisplayName + "]启动失败！原因：" + e.Message);
         }
+
         /// <summary>
         /// 将xml文件反序列化为对象
         /// </summary>
